@@ -38,7 +38,6 @@ public class ApplicationContextInfoTest {
                 System.out.println("name = "+ beanDefinitionName + " object = " + bean);
             }
         }
-
     }
 
 }
