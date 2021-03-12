@@ -108,4 +108,92 @@ public class SingletonService {
 - **유연성이 떨어진다**
 - **안티패턴**으로 불리운다.
 
-### 하지만 스프링 컨테이너를 활용하면 싱글톤 패턴의 문제점은 해결하면서, 객체 인스턴스를 싱글톤으로 관리하는 것이 가능.
+#### 하지만 스프링 컨테이너를 활용하면 싱글톤 패턴의 문제점은 해결하면서, 객체 인스턴스를 싱글톤으로 관리하는 것이 가능.
+
+
+### 21.03.12 @ComponentScan을 통한 자동 빈 생성 및 @Autowired를 통한 의존성 주입
+
+AppConfig 클래스를 통해 수동으로 빈을 생성함과 동시에 의존성을 주입할 수 있다.
+
+```java
+@Configuration //어플리케이션의 설정 정보를 나타낸다는 어노테이션
+public class AppConfig {
+
+    @Bean //스프링 컨테이너에 해당 Bean이 등록된다.
+    public MemberService memberService() {
+        System.out.println("call AppConfig.memberService");
+        return new MemberServiceImpl(memberRepository());
+        //해당 부분에서 memberRepository를 생성하며 의존성을 주입한다.
+    }
+    @Bean
+    public MemberRepository memberRepository() {
+        System.out.println("call AppConfig.memberRepository");
+        return new MemoryMemberRepository();
+    }
+    @Bean
+    public OrderService orderService() {
+        System.out.println("call AppConfig.orderService");
+        return new OrderServiceImpl(memberRepository(), discountPolicy());
+    }
+    @Bean
+    public DiscountPolicy discountPolicy() {
+//        return new FixDiscountPolicy();
+        return new RateDiscountPolicy();
+    }
+}
+```
+위의 설정 클래스에서 해당 생성자를 통해 의존성을 주입한다.
+```java
+public MemberServiceImpl(MemberRepository memberRepository) {
+        this.memberRepository = memberRepository;
+    }
+
+```
+
+**하지만 자동으로 빈을 생성하기 위해 @ComponentScan을 사용할 경우,**
+```java
+@Configuration
+@ComponentScan
+public class AutoAppConfig {
+
+}
+```
+위의 코드만으로 설정 창이 끝나기 때문에 따로 의존성 주입을 해줄 수 있는 방법이 없다.
+
+`@ComponentScan`어노테이션은 모든 클래스를 검색하면서 `@Component`가 붙은 클래스를 찾아 빈에 등록해준다.
+`@ComponentScan`은 스캔을 시작할 위치를 지정해줄 수 있는데, default가 현재 `@ComponentScan`을 사용하는 설정 클래스의 패키지이기 때문에 가능하면 default값으로 사용하고, 설정 파일은 프로젝트 최상단에 두는 것을 추천한다.
+
+이로서 자동으로 빈을 생성해주는 것은 문제가 없는데, 설정 클래스에서 각 Bean마다 의존성을 주입하는 부분이 사라졌다. 이 부분은 `@Autowired`로 해결이 가능한데,
+`@Component`를 사용한 빈의 생성자 부분에 `@Autowired`를 추가하면 자동으로 의존성 주입까지 완료된다.
+
+```java
+@Component
+public class MemberServiceImpl implements MemberService {
+    private final MemberRepository memberRepository;
+
+    @Autowired //ac.getBean(MemberRepository.class)을 쓴 것 같이, 의존관계를 자동 주입해준다.
+    public MemberServiceImpl(MemberRepository memberRepository) {
+        this.memberRepository = memberRepository;
+    }
+
+
+    @Override
+    public void join(Member member) {
+        memberRepository.save(member);
+    }
+
+    @Override
+    public Member findMember(Long memberId) {
+        return memberRepository.findById(memberId);
+    }
+}
+```
+
+#### 수동등록 빈 vs 자동등록 빈
+- 수동등록한 빈이 있다면 수동등록한 빈이 우선권을 가지게 되어 overriding 된다.
+- 다만 요즘에는 의도적으로 이런 결과를 기대하는 것 보다는 우연치않게 꼬이는 경우가 많기 때문에, 스프링 자체에서 자동빈과 수동빈이 충돌할 경우, 오류 메세지를 출력한다.
+```java
+Consider renaming one of the beans or enabling overriding by setting 
+spring.main.allow-bean-definition-overriding=true
+```
+`spring.main.allow-bean-definition-overiding` 부분의 기본값을 false로 되어있는데, 이 부분을 true로 바꿔주면 수동 등록 빈이 자동 등록 빈을 덮어쓸 수 있다.
