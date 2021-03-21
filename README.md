@@ -197,3 +197,75 @@ Consider renaming one of the beans or enabling overriding by setting
 spring.main.allow-bean-definition-overriding=true
 ```
 `spring.main.allow-bean-definition-overiding` 부분의 기본값을 false로 되어있는데, 이 부분을 true로 바꿔주면 수동 등록 빈이 자동 등록 빈을 덮어쓸 수 있다.
+
+
+
+### 21.03.19-20 조회 빈이 2개 이상일 때 해결 법
+
+- 조회 대상 빈이 2개 이상일 때 해결 방법
+    - @Autowired 필드명 매칭
+    - @Qualifier -> @Qualifier 매칭 -> 빈 이름 매칭
+    - @Primary 사용
+    
+#### @Autowired 필드명 매칭
+`@Autowired`는 타입 매칭을 시도하고, 이때 여러 빈이 있으면 필드 이름, 파라미터 이름으로 빈 이름을 추가 매칭
+
+##### 기존 코드
+```java
+@Autowired
+private DiscountPolicy discountPolicy
+```
+
+##### 필드 명을 빈 이름으로 변경
+```java
+@Autowired
+private DiscountPolicy rateDiscountPolicy
+```
+
+필드 명이 `rateDiscountPolicy`이므로 정상 주입된다.
+
+
+*@Autowired 매칭 정리*
+- 타입 매칭
+- 타입 매칭의 결과가 2개 이상일 때 필드명, 파라미터 명으로 빈 이름 매칭
+
+--------------------------------------
+
+#### @Qualifier 사용
+`@Qualifier`를 사용해서 원하는 이름으로 지정 후 호출할 수 있다.
+
+
+```java
+@Component
+@Qualifier("mainDiscountPolicy")
+public class RateDiscountPolicy implements DiscountPolicy{}
+```
+```java
+@Component
+@Qualifier("fixDiscountPolicy")
+public class FixDiscountPolicy implements DiscountPolicy{}
+```
+
+
+##### 생성자 자동 주입 예시
+```java
+ @Autowired 
+    public OrderServiceImpl(MemberRepository memberRepository,
+            @Qualifier("mainDiscountPolicy") DiscountPolicy discountPolicy) {
+        this.memberRepository = memberRepository;
+        this.discountPolicy = discountPolicy;
+    }
+```
+`@Qualifier`로 주입할 때 `@Qualifier("mainDiscountPolicy")`를 못 찾으면 mainDiscountPolicy라는 이름의 스프링 빈을 추가로 찾는다.
+하지만 `@Qualifier`는 `@Qualifier`를 찾는 용도로만 쓰는 것이 좋다.
+
+
+*@Qualifier 매칭 정리*
+1. `@Qualifier`끼리 매칭
+2. 빈 이름 매칭
+3. `NoSuchBeanDefinitionException` 예외 발생
+
+----------------------------------------
+#### @Primary 사용
+`@Primary`는 우선순위를 정하는 방법. @Autowired 시에 여러 빈이 매칭되면 `@Primary`가 최우선권을 가진다.
+억지로 Qualifier같이 붙이지 않아도 되서 편하다. 주 DB에서는 `@Primary`를 사용하고, 보조 DB에서 Qualifier를 사용하는 경우도 많음.
